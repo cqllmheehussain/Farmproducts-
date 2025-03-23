@@ -1,0 +1,236 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html>
+<head>
+  <meta name='viewport' content='width=device-width, initial-scale=1'/>
+  <title>FarmConnect - USSD Marketplace</title>
+  <style>
+    /* Phone UI */
+    .phone {
+      border: 2px solid #333;
+      width: 300px;
+      margin: 20px auto;
+      background: #f0f0f0;
+    }
+    .screen {
+      background: #000;
+      color: #0f0;
+      padding: 15px;
+      font-family: monospace;
+      min-height: 150px;
+    }
+    .keypad { 
+      margin: 10px;
+      text-align: center;
+    }
+    #ussdInput {
+      width: 80%;
+      padding: 8px;
+    }
+
+    /* Buyer Panel */
+    .buyer-panel {
+      margin: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+    }
+
+    /* Footer */
+    .university-footer {
+      background-color: #2c3e50;
+      color: white;
+      padding: 15px 0;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      border-top: 2px solid #e67e22;
+    }
+    body {
+      margin-bottom: 100px;
+    }
+    .crop-card {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- USSD Interface -->
+  <div class="phone">
+    <div class="screen" id="screen">
+      <pre>Welcome to FarmConnect!
+Dial *123# to begin</pre>
+    </div>
+    <div class="keypad">
+      <input type="text" id="ussdInput" placeholder="Enter USSD code" maxlength="10">
+      <button onclick="handleDial()">Dial</button>
+    </div>
+  </div>
+
+  <!-- Buyer Interface -->
+  <div class="buyer-panel">
+    <h3>Buyer Search (Format: PRODUCT LOCATION)</h3>
+    <input type="text" id="buyerSMS" placeholder="Example: MAIZE LAGOS">
+    <button onclick="handleSMS()">Search</button>
+    <div id="results"></div>
+  </div>
+
+  <footer class="university-footer">
+    <div class="footer-content">
+      <p>Developed by Daluk Adekunle Mariam - ESFAM UNIVERSITY</p>
+      <p>Agricultural Innovation Project - Class of 2025.</p>
+    </div>
+  </footer>
+
+  <script>
+    // USSD State Management
+    let currentMenu = 'main';
+    let tempCrop = {};
+    const defaultPhone = "+234 907 792 4238";
+
+    // Weather Data
+    const weatherForecasts = {
+      'LAGOS': 'Sunny, 28°C, Low humidity',
+      'ABUJA': 'Partly cloudy, 25°C, 20% rain',
+      'KANO': 'Hot & dry, 32°C, Strong winds',
+      'DEFAULT': 'Mild, 24-30°C, Normal conditions'
+    };
+
+    // Initialize Sample Data
+    const sampleCrops = [
+      {
+        name: "MAIZE",
+        location: "LAGOS",
+        price: 1500,
+        quantity: 200,
+        phone: defaultPhone,
+        date: "2024-03-20"
+      },
+      {
+        name: "RICE",
+        location: "ABUJA",
+        price: 1800,
+        quantity: 150,
+        phone: "+234 803 456 7890",
+        date: "2024-03-21"
+      },
+      {
+        name: "CASSAVA",
+        location: "KANO",
+        price: 1200,
+        quantity: 300,
+        phone: "+234 902 345 6789",
+        date: "2024-03-22"
+      }
+    ];
+
+    if(!localStorage.getItem('crops')) {
+      localStorage.setItem('crops', JSON.stringify(sampleCrops));
+    }
+
+    // USSD Flow Logic
+    function handleDial() {
+      const input = document.getElementById('ussdInput').value;
+      let response = "";
+      
+      if (input === '*123#') {
+        response = `FarmConnect Menu:
+1. List Crop
+2. Check Weather
+3. My Listings
+4. Help`;
+        currentMenu = 'main';
+      }
+      else if (currentMenu === 'main') {
+        switch(input) {
+          case '1':
+            response = "Enter crop name:";
+            currentMenu = 'list_crop_name';
+            break;
+          case '2':
+            response = "Enter your location:";
+            currentMenu = 'check_weather';
+            break;
+          case '3':
+            const crops = JSON.parse(localStorage.getItem('crops'))
+                          .filter(c => c.phone === defaultPhone);
+            response = crops.length 
+              ? `Your Listings:\n${crops.map(c => `${c.name} (${c.location})`).join('\n')}`
+              : "No listings found";
+            break;
+        }
+      }
+      else if (currentMenu === 'list_crop_name') {
+        tempCrop.name = input.toUpperCase();
+        response = "Enter location:";
+        currentMenu = 'list_crop_location';
+      }
+      else if (currentMenu === 'list_crop_location') {
+        tempCrop.location = input.toUpperCase();
+        response = "Enter price/kg (₦):";
+        currentMenu = 'list_crop_price';
+      }
+      else if (currentMenu === 'list_crop_price') {
+        tempCrop.price = input;
+        response = "Enter quantity (kg):";
+        currentMenu = 'list_crop_quantity';
+      }
+      else if (currentMenu === 'list_crop_quantity') {
+        tempCrop.quantity = input;
+        tempCrop.phone = defaultPhone;
+        saveCrop();
+        response = `Crop listed!\n${formatCrop(tempCrop)}\n0. Main Menu`;
+        currentMenu = 'main';
+      }
+      else if (currentMenu === 'check_weather') {
+        const location = input.toUpperCase();
+        response = `Weather for ${location}:\n${getWeather(location)}\n0. Main Menu`;
+        currentMenu = 'main';
+      }
+
+      document.getElementById('screen').innerHTML = `<pre>${response}</pre>`;
+      document.getElementById('ussdInput').value = '';
+    }
+
+    function getWeather(location) {
+      return weatherForecasts[location] || weatherForecasts.DEFAULT;
+    }
+
+    function saveCrop() {
+      const crops = JSON.parse(localStorage.getItem('crops')) || [];
+      crops.push({
+        ...tempCrop,
+        date: new Date().toLocaleDateString()
+      });
+      localStorage.setItem('crops', JSON.stringify(crops));
+      tempCrop = {};
+    }
+
+    function handleSMS() {
+      const [product, location] = document.getElementById('buyerSMS').value.toUpperCase().split(' ');
+      const results = JSON.parse(localStorage.getItem('crops'))
+        .filter(item => item.name === product && item.location === location);
+      
+      document.getElementById('results').innerHTML = results.length
+        ? results.map(formatCrop).join('')
+        : "No matching products found";
+    }
+
+    function formatCrop(crop) {
+      return `
+        <div class="crop-card">
+          <h4>${crop.name}</h4>
+          <p>Location: ${crop.location}</p>
+          <p>Price: ₦${crop.price}/kg</p>
+          <p>Quantity: ${crop.quantity}kg</p>
+          <p>Contact: <a href="tel:${crop.phone}">${crop.phone}</a></p>
+          <p>Listed: ${crop.date}</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
